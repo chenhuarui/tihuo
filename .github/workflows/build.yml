@@ -17,6 +17,13 @@ jobs:
         with:
           python-version: '3.11'
 
+      # 1. 安装环境并处理安卓证书（非常重要）
+      - name: Setup Android SDK and Licenses
+        run: |
+          mkdir -p ~/.android
+          touch ~/.android/repositories.cfg
+          yes | sdkmanager --licenses || true
+
       - name: Install dependencies
         run: |
           pip install flet
@@ -27,11 +34,22 @@ jobs:
         with:
           channel: 'stable'
 
+      # 2. 【核心排错】在打包前强制列出所有文件，确认 main.py 的位置
+      - name: Debug Project Structure
+        run: |
+          echo "--- 确认当前所在路径 ---"
+          pwd
+          echo "--- 确认文件系统清单 ---"
+          ls -F
+          echo "--- 确认 pyproject.toml 内容 ---"
+          cat pyproject.toml || echo "没有找到 pyproject.toml"
+
+      # 3. 极其严谨的打包指令
       - name: Flet Build APK
         run: |
-          # 严谨做法：如果你的代码在根目录，直接用 .
-          # 如果你的代码在“提货明细”文件夹里，请把下面的 . 改成 提货明细
-          flet build apk . 
+          # 我们先尝试最稳妥的命令：在当前目录下构建当前目录
+          # 使用 --verbose 模式，如果不成功，日志会告诉我们它去哪里找了
+          flet build apk --verbose .
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
