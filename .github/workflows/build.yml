@@ -44,7 +44,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: 提货明细生成器-APK  # 你下载时看到的文件名
+          name: tihuo-APK  # 你下载时看到的文件名
           # Flet 默认会将编译好的 APK 放在 build/apk 目录下
           path: build/apk/*.apk
           # 如果只想上传不带 debug 字样的包，可以用: build/apk/*-release-unsigned.apk
