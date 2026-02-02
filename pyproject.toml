@@ -1,0 +1,15 @@
+[tool.flet]
+# App 显示的名字
+product = "小鹰提货助手"
+# 权限配置
+android_permissions = ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+
+[tool.flet.app]
+path = "main.py"
+assets_dir = "assets"
+
+[tool.flet.android]
+# 包名，必须是三段式，例如 com.yourname.app
+package_name = "com.xiaoying.picker"
+build_number = 1
+version = "1.0.0"
