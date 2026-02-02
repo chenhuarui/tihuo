@@ -17,42 +17,30 @@ jobs:
         with:
           python-version: '3.11'
 
-      # 1. 安装环境并处理安卓证书（非常重要）
-      - name: Setup Android SDK and Licenses
-        run: |
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          yes | sdkmanager --licenses || true
-
       - name: Install dependencies
         run: |
+          pip install --upgrade pip
           pip install flet
-          pip install -r requirements.txt
+          # 检查并安装 requirements.txt，如果文件不存在则跳过
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # 2. 【核心排错】在打包前强制列出所有文件，确认 main.py 的位置
-      - name: Debug Project Structure
+      # 这个步骤非常关键：它不仅列出文件，还能告诉你 Linux 看到的名字到底对不对
+      - name: Verify Environment
         run: |
-          echo "--- 确认当前所在路径 ---"
+          echo "--- 检查当前目录 ---"
           pwd
-          echo "--- 确认文件系统清单 ---"
-          ls -F
-          echo "--- 确认 pyproject.toml 内容 ---"
-          cat pyproject.toml || echo "没有找到 pyproject.toml"
+          echo "--- 列出所有文件并标记类型 ---"
+          ls -lap
+          echo "--- 检查 main.py 是否存在 ---"
+          if [ -f main.py ]; then echo "OK: main.py exists"; else echo "ERROR: main.py NOT FOUND"; fi
 
-      # 3. 极其严谨的打包指令
       - name: Flet Build APK
         run: |
-          # 我们先尝试最稳妥的命令：在当前目录下构建当前目录
-          # 使用 --verbose 模式，如果不成功，日志会告诉我们它去哪里找了
-          flet build apk --verbose .
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: xiaoying-app-apk
-          path: build/apk/*.apk
+          # 1. 尝试直接在当前目录构建，不加额外路径参数
+          # 2. 显式指定模块名（注意：是 main，不要 .py）
+          flet build apk --module-name main
