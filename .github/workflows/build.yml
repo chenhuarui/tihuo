@@ -2,8 +2,8 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ] # 当你把代码推送到 main 分支时触发
-  workflow_dispatch:   # 也可以手动在 GitHub 页面点击触发
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -29,12 +29,12 @@ jobs:
 
       - name: Flet Build APK
         run: |
-          # 这一步会自动编译并生成 APK
-          flet build apk
+          # 严谨做法：如果你的代码在根目录，直接用 .
+          # 如果你的代码在“提货明细”文件夹里，请把下面的 . 改成 提货明细
+          flet build apk . 
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: xiaoying-app-apk
           path: build/apk/*.apk
-
