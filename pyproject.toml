@@ -1,15 +1,15 @@
 [tool.flet]
-# App 显示的名字
-product = "小鹰提货助手"
-# 权限配置
-android_permissions = ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+# 项目名称
+product = "提货助手"
 
 [tool.flet.app]
+# 告诉打包器入口文件在当前目录下的 main.py
 path = "main.py"
 assets_dir = "assets"
 
 [tool.flet.android]
-# 包名，必须是三段式，例如 com.yourname.app
-package_name = "com.xiaoying.picker"
+package_name = "com.xiaoying.thmx"
 build_number = 1
 version = "1.0.0"
+# 注意：权限声明也是关键
+permissions = ["INTERNET", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
