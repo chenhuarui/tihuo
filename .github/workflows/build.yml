@@ -21,7 +21,6 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install flet
-          # 检查并安装 requirements.txt，如果文件不存在则跳过
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Setup Flutter
@@ -29,18 +28,24 @@ jobs:
         with:
           channel: 'stable'
 
-      # 这个步骤非常关键：它不仅列出文件，还能告诉你 Linux 看到的名字到底对不对
       - name: Verify Environment
         run: |
           echo "--- 检查当前目录 ---"
           pwd
-          echo "--- 列出所有文件并标记类型 ---"
           ls -lap
-          echo "--- 检查 main.py 是否存在 ---"
-          if [ -f main.py ]; then echo "OK: main.py exists"; else echo "ERROR: main.py NOT FOUND"; fi
+          if [ -f main.py ]; then echo "OK: main.py exists"; else echo "ERROR: main.py NOT FOUND"; exit 1; fi
 
       - name: Flet Build APK
         run: |
-          # 1. 尝试直接在当前目录构建，不加额外路径参数
-          # 2. 显式指定模块名（注意：是 main，不要 .py）
+          # 运行构建命令
           flet build apk --module-name main
+
+      # ================= 新增：保存并上传编译好的 APK =================
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tihuo-APK  # 你下载时看到的文件名
+          # Flet 默认会将编译好的 APK 放在 build/apk 目录下
+          path: build/apk/*.apk
+          # 如果只想上传不带 debug 字样的包，可以用: build/apk/*-release-unsigned.apk
+      # =============================================================
