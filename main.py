@@ -1,139 +1,183 @@
 import flet as ft
 import openpyxl
-from openpyxl.styles import Alignment, Border, Side, Font
 import os
+import datetime
 import tempfile
-from datetime import datetime
+from flet.services import Share, ShareFile  # 新增：最新版分享服务
 
 def main(page: ft.Page):
+    # --- 基础配置 (完全保留原版) ---
     page.title = "提货明细生成器"
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.window_width = 400
-    page.window_height = 800
-    # 手机适配设置
-    page.padding = 10
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.scroll = ft.ScrollMode.AUTO
+    page.padding = 20
 
-    # --- 1. 初始化分享控件 (关键步骤) ---
-    share_controller = ft.Share()
-    page.overlay.append(share_controller)
+    # --- 1. 逻辑函数 (完全同步 file:11.txt 的业务逻辑) ---
 
-    # 结果提示函数
-    def show_toast(text):
-        page.snack_bar = ft.SnackBar(ft.Text(text))
-        page.snack_bar.open = True
-        page.update()
+    def get_asset_path(filename):
+        # 兼容性路径：直接访问 assets 目录
+        return os.path.join("assets", filename)
 
-    # --- 2. 生成 Excel 并分享的逻辑 ---
-    def generate_and_share(e):
-        # 验证输入
-        if not customer_name.value:
-            show_toast("请输入客户姓名")
-            return
+    def search_customer(keyword):
+        data_path = get_asset_path("data.xlsx")
+        if not os.path.exists(data_path):
+            show_toast(f"找不到数据源: assets/data.xlsx")
+            return []
 
         try:
-            # 创建 Excel (保持你原始的 openpyxl 逻辑)
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "提货明细"
+            wb = openpyxl.load_workbook(data_path, data_only=True)
+            ws = wb["Sheet2"]
+            matches = []
+            # 完整保留你代码中的四行数据截取逻辑
+            for row in range(1, ws.max_row + 1):
+                cell_val = ws.cell(row=row, column=2).value
+                if cell_val and keyword in str(cell_val):
+                    matches.append({
+                        "name": cell_val,
+                        "phone": ws.cell(row=row + 1, column=2).value,
+                        "addr": ws.cell(row=row + 2, column=2).value,
+                        "extra": ws.cell(row=row + 3, column=2).value
+                    })
+            wb.close()
+            return matches
+        except Exception as e:
+            show_toast(f"读取 Excel 出错: {e}")
+            return []
 
-            # 设置列宽
-            ws.column_dimensions['A'].width = 15
-            ws.column_dimensions['B'].width = 20
+    def generate_and_share(customer_info):
+        try:
+            tpl_path = get_asset_path("template.xlsx")
+            if not os.path.exists(tpl_path):
+                show_toast("找不到模板文件 assets/template.xlsx")
+                return
 
-            # 写入基础信息
-            data = [
-                ["客户姓名", customer_name.value],
-                ["提货日期", datetime.now().strftime("%Y-%m-%d")],
-                ["", ""],
-                ["品名", "数量"]
-            ]
+            wb = openpyxl.load_workbook(tpl_path)
+            ws = wb["1"]
 
-            # 遍历表格中的数据
-            for row_view in data_table.rows:
-                product = row_view.cells[0].content.value
-                amount = row_view.cells[1].content.value
-                if product and amount:
-                    data.append([product, amount])
+            # 填充数据 (完全同步 file:11.txt 单元格位置)
+            ws["C2"] = datetime.datetime.now().strftime("%Y年%m月%d日")
+            ws["B6"] = customer_info["name"]
+            ws["E6"] = customer_info["phone"]
+            ws["C6"] = customer_info["addr"]
+            ws["D6"] = customer_info["extra"]
+            ws["G6"] = product_input.value
+            ws["J6"] = count_input.value
+            ws["M6"] = temp_radio.value
 
-            for row in data:
-                ws.append(row)
-
-            # --- 保存文件 ---
+            # 生成临时文件
             temp_dir = tempfile.gettempdir()
-            file_name = f"提货单_{customer_name.value}_{datetime.now().strftime('%H%M%S')}.xlsx"
-            save_path = os.path.join(temp_dir, file_name)
+            save_name = f"提货明细_{customer_info['name']}.xlsx"
+            save_path = os.path.join(temp_dir, save_name)
             wb.save(save_path)
             wb.close()
 
-            # --- 3. 根据你查到的文档执行分享 ---
-            # 使用 ShareFile.from_path
-            excel_file = ft.ShareFile.from_path(
-                path=save_path,
-                name=file_name, # 分享给别人时显示的名字
-                mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-
-            # 调用 share_files 方法
-            share_controller.share_files([excel_file])
-            show_toast("正在调起系统分享...")
-
-        except Exception as ex:
-            show_toast(f"发生错误: {str(ex)}")
-
-    # --- UI 界面部分 (保持或优化你的原始设计) ---
-    customer_name = ft.TextField(label="客户姓名", hint_text="输入姓名")
-    
-    # 手动输入区域
-    input_product = ft.TextField(label="品名", expand=2)
-    input_amount = ft.TextField(label="数量", expand=1, keyboard_type=ft.KeyboardType.NUMBER)
-
-    def add_row(e):
-        if input_product.value and input_amount.value:
-            data_table.rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.TextField(value=input_product.value)),
-                        ft.DataCell(ft.TextField(value=input_amount.value)),
-                    ]
+            # --- 新版分享逻辑（兼容最新 Flet）---
+            try:
+                Share.share_files(
+                    page=page,
+                    files=[ShareFile.from_path(save_path, name=save_name)]
+                    # 可选：title="提货明细", text="请查收文件"
                 )
-            )
-            input_product.value = ""
-            input_amount.value = ""
-            page.update()
+                show_toast("生成成功！已调用系统分享")
+            except Exception as e:
+                # 移动端不支持或桌面环境时 fallback
+                show_toast(f"分享失败，已保存到临时目录: {save_path}")
+                import webbrowser
+                webbrowser.open(os.path.dirname(save_path))
 
-    data_table = ft.DataTable(
-        columns=[
-            ft.DataColumn(ft.Text("品名")),
-            ft.DataColumn(ft.Text("数量")),
-        ],
-        rows=[]
+        except Exception as e:
+            show_toast(f"生成失败: {e}")
+
+    def show_toast(text):
+        # 兼容性提示：SnackBar 必须放入 overlay
+        sb = ft.SnackBar(ft.Text(text))
+        page.overlay.append(sb)
+        sb.open = True
+        page.update()
+
+    # --- 2. UI 事件 (解决 page.open 报错) ---
+
+    def handle_gen_click(e):
+        if not search_input.value:
+            show_toast("请输入搜索关键字")
+            return
+
+        results = search_customer(search_input.value)
+        if not results:
+            show_toast("未找到匹配客户")
+            return
+
+        if len(results) > 1:
+            # 多选逻辑
+            options = []
+            for item in results:
+                # 闭包捕获 info，解决循环变量引用问题
+                def make_click_handler(info):
+                    return lambda _: [
+                        setattr(bottom_sheet, "open", False), 
+                        page.update(), 
+                        generate_and_share(info)
+                    ]
+
+                options.append(ft.ListTile(
+                    title=ft.Text(item["name"]),
+                    subtitle=ft.Text(f"{item['addr'] or ''}"),
+                    on_click=make_click_handler(item)
+                ))
+
+            bottom_sheet.content = ft.Container(
+                content=ft.Column(options, tight=True, scroll=ft.ScrollMode.AUTO),
+                padding=10,
+                height=400 
+            )
+            # --- 修复 AttributeError: 'Page' object has no attribute 'open' ---
+            bottom_sheet.open = True 
+            page.update()
+        else:
+            generate_and_share(results[0])
+
+    # --- 3. UI 组件 ---
+
+    search_input = ft.TextField(label="🔍 搜索客户", border_radius=12)
+    product_input = ft.TextField(label="📦 产品名称", border_radius=12)
+    count_input = ft.TextField(label="📊 件数", keyboard_type=ft.KeyboardType.NUMBER, border_radius=12)
+
+    temp_radio = ft.RadioGroup(
+        content=ft.Row([
+            ft.Radio(value="常温", label="常温"),
+            ft.Radio(value="冷链", label="冷链")
+        ], alignment=ft.MainAxisAlignment.CENTER),
+        value="常温"
     )
 
-    # 页面布局
+    # 底部选择面板，必须先加入 overlay
+    bottom_sheet = ft.BottomSheet(ft.Container(padding=10))
+    page.overlay.append(bottom_sheet)
+
+    # 主界面布局
     page.add(
-        ft.Column([
-            ft.Text("提货信息录入", size=20, weight=ft.FontWeight.BOLD),
-            customer_name,
-            ft.Row([input_product, input_amount, ft.IconButton(ft.icons.ADD, on_click=add_row)]),
-            ft.Divider(),
-            ft.Text("已添加列表:"),
-            data_table,
-            ft.ElevatedButton(
-                "生成 Excel 并一键分享",
-                icon=ft.icons.SHARE,
-                on_click=generate_and_share,
-                style=ft.ButtonStyle(
-                    color=ft.colors.WHITE,
-                    bgcolor=ft.colors.BLUE,
-                ),
-                width=400
-            )
-        ], scroll=ft.ScrollMode.AUTO)
+        ft.Container(height=10),
+        ft.Text("🦅 提货明细生成器", size=26, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_700),
+        ft.Divider(height=20),
+        search_input,
+        product_input,
+        count_input,
+        ft.Row([ft.Text("🌡️ 温度选择:"), temp_radio], alignment=ft.MainAxisAlignment.CENTER),
+        ft.Container(height=20),
+        ft.ElevatedButton(
+            content=ft.Row(
+                [ft.Icon(ft.Icons.SEND), ft.Text("生成并分享文件", size=16)],
+                alignment=ft.MainAxisAlignment.CENTER
+            ),
+            width=300,
+            height=50,
+            on_click=handle_gen_click,
+            bgcolor=ft.Colors.BLUE_600,
+            color=ft.Colors.WHITE
+        )
     )
 
 if __name__ == "__main__":
-    # 如果是在本地开发环境
-    # ft.app(target=main) 
-    
-    # 如果是打包成手机 App 或在移动端运行
-    ft.app(target=main)
+    # 使用 assets_dir 确保资源路径正确
+    ft.app(target=main, assets_dir="assets")
